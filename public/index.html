@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code Config Manager</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      opacity: 0.9;
+      font-size: 14px;
+    }
+
+    .content {
+      padding: 30px;
+    }
+
+    .current-config {
+      background: #f7fafc;
+      border-left: 4px solid #667eea;
+      padding: 15px;
+      margin-bottom: 30px;
+      border-radius: 4px;
+    }
+
+    .current-config h3 {
+      color: #2d3748;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+
+    .current-config .info {
+      font-size: 14px;
+      color: #4a5568;
+      margin: 5px 0;
+      word-break: break-all;
+    }
+
+    .section {
+      margin-bottom: 30px;
+    }
+
+    .section h2 {
+      color: #2d3748;
+      font-size: 20px;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    label {
+      display: block;
+      color: #4a5568;
+      font-size: 14px;
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 2px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #5568d3;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-secondary {
+      background: #48bb78;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: #38a169;
+      transform: translateY(-1px);
+    }
+
+    .btn-danger {
+      background: #f56565;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #e53e3e;
+    }
+
+    .btn-small {
+      padding: 6px 12px;
+      font-size: 13px;
+    }
+
+    .group-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .group-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 15px;
+      background: #f7fafc;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+
+    .group-item.active {
+      border-color: #667eea;
+      background: #eef2ff;
+    }
+
+    .group-info {
+      flex: 1;
+    }
+
+    .group-name {
+      font-weight: 600;
+      color: #2d3748;
+      margin-bottom: 4px;
+    }
+
+    .group-url {
+      font-size: 13px;
+      color: #718096;
+      word-break: break-all;
+    }
+
+    .group-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .add-form {
+      background: #f7fafc;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    .form-row .form-group {
+      flex: 1;
+    }
+
+    .import-export {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .message {
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+
+    .message.success {
+      background: #c6f6d5;
+      color: #22543d;
+      border: 1px solid #9ae6b4;
+    }
+
+    .message.error {
+      background: #fed7d7;
+      color: #742a2a;
+      border: 1px solid #fc8181;
+    }
+
+    .message.info {
+      background: #bee3f8;
+      color: #2c5282;
+      border: 1px solid #90cdf4;
+    }
+
+    .command-box {
+      background: #2d3748;
+      color: #e2e8f0;
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      margin-top: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .command-box code {
+      flex: 1;
+    }
+
+    .command-box button {
+      background: #4299e1;
+      color: white;
+      border: none;
+      padding: 4px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      margin-left: 10px;
+    }
+
+    .command-box button:hover {
+      background: #3182ce;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      background: #667eea;
+      color: white;
+      font-size: 11px;
+      border-radius: 12px;
+      margin-left: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>⚙️ Claude Code Config Manager</h1>
+      <p>轻量级配置管理工具 - 快速切换 Base URL 和 Token</p>
+    </div>
+
+    <div class="content">
+      <div id="message" class="message hidden"></div>
+
+      <div id="conflictAlert" class="message error hidden">
+        <strong>⚠️ 检测到环境变量冲突！</strong>
+        <div id="conflictDetails"></div>
+        <button class="btn btn-danger btn-small" style="margin-top: 10px;" onclick="fixConflicts()">自动修复</button>
+      </div>
+
+      <div class="current-config">
+        <h3>📍 当前 Claude Code 配置</h3>
+        <div class="info"><strong>Base URL:</strong> <span id="currentBaseUrl">-</span></div>
+        <div class="info"><strong>API Key:</strong> <span id="currentApiKey">-</span></div>
+        <div class="info"><strong>当前配置组:</strong> <span id="currentGroup">未选择</span></div>
+        <button class="btn btn-secondary btn-small" style="margin-top: 10px;" onclick="showDiagnosis()">系统诊断</button>
+      </div>
+
+      <div class="section">
+        <h2>➕ 添加新配置组</h2>
+        <div class="add-form">
+          <div class="form-group">
+            <label for="groupName">配置组名称</label>
+            <input type="text" id="groupName" placeholder="例如: Production">
+          </div>
+          <div class="form-group">
+            <label for="baseUrl">Base URL</label>
+            <input type="text" id="baseUrl" placeholder="https://api.anthropic.com">
+          </div>
+          <div class="form-group">
+            <label for="token">API Token</label>
+            <input type="password" id="token" placeholder="sk-ant-...">
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button class="btn btn-primary" onclick="addGroup()">添加配置组</button>
+            <button class="btn btn-secondary" onclick="validateConfig()">验证配置</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>📋 配置组列表</h2>
+        <div id="groupList" class="group-list">
+          <p style="color: #718096; text-align: center; padding: 20px;">暂无配置组</p>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>💾 导入 / 导出</h2>
+        <div class="import-export">
+          <button class="btn btn-secondary" onclick="exportConfig()">导出配置</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">导入配置</button>
+          <input type="file" id="importFile" accept=".json" onchange="importConfig(event)">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let groups = [];
+    let currentGroup = null;
+
+    // 显示消息
+    function showMessage(text, type = 'success', commandHtml = '') {
+      const msg = document.getElementById('message');
+      msg.innerHTML = text + commandHtml;
+      msg.className = `message ${type}`;
+      if (type === 'info') {
+        // 信息类型消息不自动隐藏
+        return;
+      }
+      setTimeout(() => msg.className = 'message hidden', 3000);
+    }
+
+    // 复制命令到剪贴板
+    function copyCommand(command) {
+      navigator.clipboard.writeText(command).then(() => {
+        showMessage('命令已复制到剪贴板！', 'success');
+      }).catch(err => {
+        console.error('复制失败:', err);
+      });
+    }
+
+    // 加载数据
+    async function loadData() {
+      try {
+        const [configRes, currentRes, conflictsRes] = await Promise.all([
+          fetch('/api/groups'),
+          fetch('/api/current'),
+          fetch('/api/conflicts')
+        ]);
+
+        const configData = await configRes.json();
+        const currentData = await currentRes.json();
+        const conflictsData = await conflictsRes.json();
+
+        groups = configData.groups || [];
+        currentGroup = configData.currentGroup;
+
+        document.getElementById('currentBaseUrl').textContent = currentData.baseUrl || '未设置';
+        document.getElementById('currentApiKey').textContent = currentData.apiKey ? '***' + currentData.apiKey.slice(-8) : '未设置';
+        document.getElementById('currentGroup').textContent = currentGroup || '未选择';
+
+        // 显示冲突警告
+        if (conflictsData.hasConflicts) {
+          showConflictAlert(conflictsData.conflicts);
+        } else {
+          document.getElementById('conflictAlert').className = 'message hidden';
+        }
+
+        renderGroups();
+      } catch (error) {
+        showMessage('加载配置失败: ' + error.message, 'error');
+      }
+    }
+
+    // 显示冲突警告
+    function showConflictAlert(conflicts) {
+      const alert = document.getElementById('conflictAlert');
+      const details = document.getElementById('conflictDetails');
+
+      let html = '<ul style="margin: 10px 0; padding-left: 20px;">';
+      conflicts.forEach(conflict => {
+        html += `<li>${conflict.message}</li>`;
+        if (conflict.line) {
+          html += `<code style="display: block; margin: 5px 0; padding: 5px; background: rgba(0,0,0,0.1);">${conflict.line}</code>`;
+        }
+      });
+      html += '</ul>';
+
+      details.innerHTML = html;
+      alert.className = 'message error';
+    }
+
+    // 修复冲突
+    async function fixConflicts() {
+      try {
+        const res = await fetch('/api/fix-conflicts', { method: 'POST' });
+        const data = await res.json();
+
+        if (data.success) {
+          let message = '✅ 冲突修复完成！\n\n';
+
+          if (data.results.cleaned.length > 0) {
+            message += `清理的环境变量: ${data.results.cleaned.join(', ')}\n`;
+          }
+
+          if (data.results.fixed.length > 0) {
+            message += '\n修复内容:\n';
+            data.results.fixed.forEach(fix => {
+              message += `• ${fix}\n`;
+            });
+          }
+
+          if (data.results.errors.length > 0) {
+            message += '\n⚠️ 错误:\n';
+            data.results.errors.forEach(err => {
+              message += `• ${err}\n`;
+            });
+          }
+
+          alert(message);
+          await loadData();
+        }
+      } catch (error) {
+        showMessage('修复失败: ' + error.message, 'error');
+      }
+    }
+
+    // 显示诊断信息
+    async function showDiagnosis() {
+      try {
+        const res = await fetch('/api/diagnose');
+        const data = await res.json();
+
+        let message = '=== 系统诊断信息 ===\n\n';
+
+        message += '环境变量:\n';
+        Object.entries(data.envVars).forEach(([key, value]) => {
+          message += `  ${key}: ${value}\n`;
+        });
+
+        message += '\n文件状态:\n';
+        message += `  ~/.claude.json: ${data.files.claudeJson ? '✓ 存在' : '✗ 不存在'}\n`;
+        message += `  ~/.cc-env: ${data.files.ccEnv ? '✓ 存在' : '✗ 不存在'}\n`;
+        message += `  ~/.bashrc: ${data.files.bashrc ? '✓ 存在' : '✗ 不存在'}\n`;
+        message += `  bashrc 已配置 source: ${data.bashrcHasSource ? '✓ 是' : '✗ 否'}\n`;
+
+        if (data.conflicts.length > 0) {
+          message += '\n⚠️ 检测到冲突:\n';
+          data.conflicts.forEach(conflict => {
+            message += `  • ${conflict.message}\n`;
+          });
+        } else {
+          message += '\n✅ 未检测到冲突\n';
+        }
+
+        message += `\n配置文件路径:\n`;
+        message += `  ${data.configFile}\n`;
+        message += `  ${data.envFile}\n`;
+
+        alert(message);
+      } catch (error) {
+        showMessage('诊断失败: ' + error.message, 'error');
+      }
+    }
+
+    // 验证配置
+    async function validateConfig() {
+      const baseUrl = document.getElementById('baseUrl').value.trim();
+      const token = document.getElementById('token').value.trim();
+
+      if (!baseUrl || !token) {
+        showMessage('请先填写 Base URL 和 Token', 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ baseUrl, apiKey: token })
+        });
+
+        const data = await res.json();
+
+        if (data.valid) {
+          showMessage('✅ ' + data.message, 'success');
+        } else {
+          showMessage('❌ ' + data.error, 'error');
+        }
+      } catch (error) {
+        showMessage('验证失败: ' + error.message, 'error');
+      }
+    }
+
+    // 渲染配置组列表
+    function renderGroups() {
+      const container = document.getElementById('groupList');
+
+      if (groups.length === 0) {
+        container.innerHTML = '<p style="color: #718096; text-align: center; padding: 20px;">暂无配置组</p>';
+        return;
+      }
+
+      container.innerHTML = groups.map(group => `
+        <div class="group-item ${group.name === currentGroup ? 'active' : ''}">
+          <div class="group-info">
+            <div class="group-name">
+              ${group.name}
+              ${group.name === currentGroup ? '<span class="badge">当前</span>' : ''}
+            </div>
+            <div class="group-url">${group.baseUrl}</div>
+          </div>
+          <div class="group-actions">
+            <button class="btn btn-primary btn-small" onclick="switchGroup('${group.name}')">切换</button>
+            <button class="btn btn-secondary btn-small" onclick="editGroup('${group.name}')">编辑</button>
+            <button class="btn btn-danger btn-small" onclick="deleteGroup('${group.name}')">删除</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // 添加配置组
+    async function addGroup() {
+      const name = document.getElementById('groupName').value.trim();
+      const baseUrl = document.getElementById('baseUrl').value.trim();
+      const token = document.getElementById('token').value.trim();
+
+      if (!name || !baseUrl || !token) {
+        showMessage('请填写所有字段', 'error');
+        return;
+      }
+
+      if (groups.some(g => g.name === name)) {
+        showMessage('配置组名称已存在', 'error');
+        return;
+      }
+
+      groups.push({ name, baseUrl, token });
+
+      try {
+        await fetch('/api/groups', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ groups, currentGroup })
+        });
+
+        document.getElementById('groupName').value = '';
+        document.getElementById('baseUrl').value = '';
+        document.getElementById('token').value = '';
+
+        renderGroups();
+        showMessage('配置组添加成功');
+      } catch (error) {
+        showMessage('保存失败: ' + error.message, 'error');
+      }
+    }
+
+    // 编辑配置组
+    async function editGroup(groupName) {
+      const group = groups.find(g => g.name === groupName);
+      if (!group) {
+        showMessage('配置组不存在', 'error');
+        return;
+      }
+
+      // 使用 prompt 获取新的配置信息
+      const newName = prompt('配置组名称:', group.name);
+      if (newName === null) return; // 用户取消
+
+      const newBaseUrl = prompt('Base URL:', group.baseUrl);
+      if (newBaseUrl === null) return;
+
+      const newToken = prompt('API Token:', group.token);
+      if (newToken === null) return;
+
+      if (!newName || !newBaseUrl || !newToken) {
+        showMessage('所有字段都不能为空', 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/groups/${encodeURIComponent(groupName)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: newName.trim(), baseUrl: newBaseUrl.trim(), token: newToken.trim() })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          showMessage('配置组更新成功');
+          await loadData();
+        } else {
+          showMessage(data.error || '更新失败', 'error');
+        }
+      } catch (error) {
+        showMessage('更新失败: ' + error.message, 'error');
+      }
+    }
+
+    // 切换配置组
+    async function switchGroup(groupName) {
+      try {
+        const res = await fetch('/api/switch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ groupName })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          const commandHtml = `
+            <div style="margin-top: 10px;">
+              <strong>环境变量已更新！</strong>
+              <div class="command-box">
+                <code>${data.sourceCommand}</code>
+                <button onclick="copyCommand('${data.sourceCommand}')">复制</button>
+              </div>
+              <p style="margin-top: 8px; font-size: 13px;">请在终端中运行上述命令以立即生效，或重新打开终端。</p>
+            </div>
+          `;
+          showMessage(`✅ 成功切换到: ${groupName}`, 'info', commandHtml);
+          await loadData();
+        } else {
+          showMessage(data.error || '切换失败', 'error');
+        }
+      } catch (error) {
+        showMessage('切换失败: ' + error.message, 'error');
+      }
+    }
+
+    // 删除配置组
+    async function deleteGroup(groupName) {
+      if (!confirm(`确定要删除配置组 "${groupName}" 吗？`)) {
+        return;
+      }
+
+      groups = groups.filter(g => g.name !== groupName);
+      if (currentGroup === groupName) {
+        currentGroup = null;
+      }
+
+      try {
+        await fetch('/api/groups', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ groups, currentGroup })
+        });
+
+        renderGroups();
+        showMessage('配置组已删除');
+        await loadData();
+      } catch (error) {
+        showMessage('删除失败: ' + error.message, 'error');
+      }
+    }
+
+    // 导出配置
+    async function exportConfig() {
+      try {
+        const res = await fetch('/api/export');
+        const data = await res.json();
+
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `cc-config-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        showMessage('配置已导出');
+      } catch (error) {
+        showMessage('导出失败: ' + error.message, 'error');
+      }
+    }
+
+    // 导入配置
+    async function importConfig(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+
+        const res = await fetch('/api/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        const result = await res.json();
+
+        if (result.success) {
+          showMessage('配置导入成功');
+          await loadData();
+        } else {
+          showMessage(result.error || '导入失败', 'error');
+        }
+      } catch (error) {
+        showMessage('导入失败: ' + error.message, 'error');
+      }
+
+      event.target.value = '';
+    }
+
+    // 页面加载时初始化
+    loadData();
+  </script>
+</body>
+</html>

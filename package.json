@@ -1,0 +1,15 @@
+{
+  "name": "cc-config-manager",
+  "version": "1.0.0",
+  "description": "Lightweight Claude Code configuration manager",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["claude-code", "config", "manager"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
