@@ -1,58 +1,42 @@
 const express = require('express');
 const fs = require('fs');
-const path = require('path');
 const net = require('net');
 const os = require('os');
+
+const {
+  CONFIG_FILE,
+  CLAUDE_SETTINGS_PATH,
+  readConfigs,
+  saveConfigs,
+  readClaudeSettings,
+} = require('./core/storage');
+const configService = require('./core/config');
+const { validateUrl, validateApiKey } = require('./core/validator');
 
 const app = express();
 const DEFAULT_PORT = process.env.PORT || 3000;
 
-// 配置文件路径
-const CONFIG_FILE = path.join(__dirname, 'configs.json');
-const CLAUDE_SETTINGS_PATH = path.join(process.env.HOME || process.env.USERPROFILE, '.claude', 'settings.json');
-
 app.use(express.json());
 app.use(express.static('public'));
 
-// 读取配置文件
-function readConfigs() {
-  if (!fs.existsSync(CONFIG_FILE)) {
-    return { groups: [], currentGroup: null };
-  }
-  return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-}
+function handleError(res, error) {
+  console.error(error);
 
-// 保存配置文件
-function saveConfigs(data) {
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(data, null, 2));
-}
-
-// 读取 Claude settings.json 配置
-function readClaudeSettings() {
-  if (!fs.existsSync(CLAUDE_SETTINGS_PATH)) {
-    return null;
-  }
-  return JSON.parse(fs.readFileSync(CLAUDE_SETTINGS_PATH, 'utf8'));
-}
-
-// 写入 Claude settings.json 配置
-function writeClaudeSettings(baseUrl, apiKey) {
-  // 确保 .claude 目录存在
-  const claudeDir = path.dirname(CLAUDE_SETTINGS_PATH);
-  if (!fs.existsSync(claudeDir)) {
-    fs.mkdirSync(claudeDir, { recursive: true });
+  if (error.message === 'Group not found') {
+    return res.status(404).json({ error: error.message });
   }
 
-  // 读取现有配置
-  const settings = readClaudeSettings() || {};
+  const validationPrefixes = ['Invalid', 'Group', 'API Key', 'Base URL'];
+  const isValidationError =
+    validationPrefixes.some((prefix) => error.message.startsWith(prefix)) ||
+    error.message.includes('required') ||
+    error.message.includes('exists');
 
-  // 更新配置
-  settings.baseUrl = baseUrl;
-  settings.apiKey = apiKey;
+  if (isValidationError) {
+    return res.status(400).json({ error: error.message });
+  }
 
-  // 写入文件
-  fs.writeFileSync(CLAUDE_SETTINGS_PATH, JSON.stringify(settings, null, 2));
-  console.log(`Updated Claude settings: ${CLAUDE_SETTINGS_PATH}`);
+  return res.status(500).json({ error: error.message });
 }
 
 // 获取所有配置组
@@ -61,7 +45,7 @@ app.get('/api/groups', (req, res) => {
     const data = readConfigs();
     res.json(data);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error);
   }
 });
 
@@ -69,8 +53,7 @@ app.get('/api/groups', (req, res) => {
 app.get('/api/groups/:name', (req, res) => {
   try {
     const groupName = req.params.name;
-    const data = readConfigs();
-    const group = data.groups.find(g => g.name === groupName);
+    const group = configService.getGroup(groupName);
 
     if (!group) {
       return res.status(404).json({ error: 'Group not found' });
@@ -78,7 +61,7 @@ app.get('/api/groups/:name', (req, res) => {
 
     res.json(group);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error);
   }
 });
 
@@ -89,7 +72,7 @@ app.post('/api/groups', (req, res) => {
     saveConfigs({ groups, currentGroup });
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error);
   }
 });
 
@@ -103,31 +86,10 @@ app.put('/api/groups/:name', (req, res) => {
       return res.status(400).json({ error: 'name, baseUrl and token are required' });
     }
 
-    const data = readConfigs();
-    const groupIndex = data.groups.findIndex(g => g.name === oldName);
-
-    if (groupIndex === -1) {
-      return res.status(404).json({ error: 'Group not found' });
-    }
-
-    // 检查新名称是否与其他配置组冲突
-    if (name !== oldName && data.groups.some(g => g.name === name)) {
-      return res.status(400).json({ error: 'Group name already exists' });
-    }
-
-    // 更新配置组
-    data.groups[groupIndex] = { name, baseUrl, token };
-
-    // 如果修改的是当前配置组，更新当前配置组名称和 Claude 配置
-    if (data.currentGroup === oldName) {
-      data.currentGroup = name;
-      writeClaudeSettings(baseUrl, token);
-    }
-
-    saveConfigs(data);
+    configService.updateGroup(oldName, { name, baseUrl, token });
     res.json({ success: true, message: 'Group updated successfully' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error);
   }
 });
 
@@ -135,27 +97,16 @@ app.put('/api/groups/:name', (req, res) => {
 app.post('/api/switch', (req, res) => {
   try {
     const { groupName } = req.body;
-    const data = readConfigs();
-    const group = data.groups.find(g => g.name === groupName);
-
-    if (!group) {
-      return res.status(404).json({ error: 'Group not found' });
-    }
-
-    // 更新 Claude settings.json 配置文件
-    writeClaudeSettings(group.baseUrl, group.token);
-
-    // 更新当前配置组
-    data.currentGroup = groupName;
-    saveConfigs(data);
+    const group = configService.switchGroup(groupName);
 
     res.json({
       success: true,
       message: `Switched to ${groupName}. Configuration updated in ${CLAUDE_SETTINGS_PATH}`,
-      settingsPath: CLAUDE_SETTINGS_PATH
+      settingsPath: CLAUDE_SETTINGS_PATH,
+      group,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error);
   }
 });
 
@@ -165,7 +116,7 @@ app.get('/api/export', (req, res) => {
     const data = readConfigs();
     res.json(data);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error);
   }
 });
 
@@ -176,17 +127,17 @@ app.post('/api/import', (req, res) => {
     saveConfigs(data);
     res.json({ success: true, message: 'Configuration imported successfully' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error);
   }
 });
 
 // 获取当前 Claude 配置
 app.get('/api/current', (req, res) => {
   try {
-    const settings = readClaudeSettings();
+    const settings = configService.getClaudeSettings();
     res.json(settings || { baseUrl: '', apiKey: '' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error);
   }
 });
 
@@ -199,28 +150,22 @@ app.post('/api/validate', async (req, res) => {
       return res.status(400).json({ error: 'baseUrl and apiKey are required' });
     }
 
-    // 基本验证
-    const urlPattern = /^https?:\/\/.+/;
-    if (!urlPattern.test(baseUrl)) {
+    try {
+      validateUrl(baseUrl);
+      validateApiKey(apiKey);
+    } catch (validationError) {
       return res.json({
         valid: false,
-        error: 'Invalid Base URL format. Must start with http:// or https://'
-      });
-    }
-
-    if (!apiKey.startsWith('sk-')) {
-      return res.json({
-        valid: false,
-        error: 'Invalid API Key format. Must start with "sk-"'
+        error: validationError.message
       });
     }
 
     res.json({
       valid: true,
-      message: 'Configuration format is valid'
+      message: 'Configuration format is valid',
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error);
   }
 });
 
@@ -244,7 +189,7 @@ app.get('/api/diagnose', (req, res) => {
       } : null
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error);
   }
 });
 
